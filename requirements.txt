@@ -2,4 +2,4 @@ discord.py
 praw
 instagrapi
 tweepy[async]
-ShopifyAPI
+Pillow
