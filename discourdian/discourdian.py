@@ -69,9 +69,9 @@ def postToInstagram(content):
             continue
         jpgPath = f".{''.join(imageUrl.split('.')[:-1])}.jpg"
         image = Image.open(imageUrl).convert("RGB")
-        width, height = image.size
-        newLength = max(width, height) + 200
         color = ImageColor.getrgb("orange" if random() > 0.49 else "gray")
+        expandedImage = ImageOps.expand(image, border=50, fill=color)
+        newLength = max(*expandedImage.size)
         alteredImage = ImageOps.pad(image, (newLength, newLength), color=color)
         alteredImage.save(jpgPath)
         media_ids.append(ic.photo_upload(jpgPath, content.caption))
