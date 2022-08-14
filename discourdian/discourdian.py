@@ -1,3 +1,7 @@
+import json
+from random import random
+from datetime import datetime, timedelta
+
 import discord
 import tweepy
 import praw
@@ -6,7 +10,8 @@ from random import random
 from PIL import Image, ImageOps, ImageColor
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
+from asyncio import sleep
 import nest_asyncio
 
 import keys
@@ -69,7 +74,7 @@ def postToInstagram(content):
             continue
         jpgPath = f".{''.join(imageUrl.split('.')[:-1])}.jpg"
         image = Image.open(imageUrl).convert("RGB")
-        color = ImageColor.getrgb("orange" if random() > 0.49 else "gray")
+        color = ImageColor.getrgb("orange" if random() > 0.45 else "gray")
         expandedImage = ImageOps.expand(image, border=50, fill=color)
         newLength = max(*expandedImage.size)
         alteredImage = ImageOps.pad(image, (newLength, newLength), color=color)
@@ -78,9 +83,66 @@ def postToInstagram(content):
     return media_ids
 
 
+def postToActivityStream(content):
+    pass
+         
+
+class ContentSchedule:
+    def __init__(self):
+        self.read()
+
+    def write(self):
+        with open("discourdianSchedule.json", "w") as f:
+            f.write(json.dumps(self._schedule, indent=2))
+
+    def read(self):
+        with open("discourdianSchedule.json", "r") as f:
+            self._schedule = json.loads(f.read())
+
+    def schedule(self, when: datetime, content: Content):
+        when = datetime.isoformat(when)
+        if when not in self._schedule:
+            self._schedule[when] = []
+        self._schedule[when].append(asdict(content))
+        self.write()
+
+    def contentToPost(self):
+        now = datetime.utcnow().isoformat()
+        for when, content in self._schedule.items():
+            if when <= now:
+                yield content
+
+    def clearSchedule(self):
+        self._schedule = {}
+
+    def syncSchedule(self):
+        now = datetime.utcnow().isoformat()
+        self._schedule = {when: content for when, content in self._schedule.items() if when > now}
+        self.write()
+
+    @property
+    def lastScheduled(self):
+        return datetime.fromisoformat(max(["2022-08-14T22:19:59.183966"] + list(self._schedule.keys())))
+
+
 class Discourdian(discord.Client):
+    contentSchedule = ContentSchedule()
+
     async def on_ready(self):
         print(f"Logged on as {self.user}!")
+        print("Starting schedule loop...")
+        while True:
+            now = datetime.utcnow().isoformat()
+            try:
+                contentToPost = list(*self.contentSchedule.contentToPost())[0]
+                contentToPost = Content(**contentToPost)
+                await self.post_content(contentToPost)
+                self.contentSchedule.syncSchedule()
+            except IndexError:
+                print("No content to post")
+
+            print("Sleeping for a day")
+            await sleep(30)
 
     async def retrieve_attachments(self, message):
         urls = []
@@ -92,13 +154,20 @@ class Discourdian(discord.Client):
                 urls.append(path)
         return urls
 
-    async def post_content(self, message):
+    async def schedule_content(self, message):
         urls = await self.retrieve_attachments(message)
         content = Content(imageUrls=urls, caption=message.content)
+        contentDate = self.contentSchedule.lastScheduled + timedelta(days=1 + 2 * random(), hours=1 + 12  * random())
+
+        self.contentSchedule.schedule(when=contentDate, content=content)
+        print(f"Content scheduled for: {contentDate}")
+
+    async def post_content(self, content):
         print(f"Posting content: {content}...")
         postToReddit(content)
         postToTwitter(content)
         postToInstagram(content)
+        postToActivityStream(content)
         print("Content posted.")
 
     async def on_raw_reaction_add(self, payload):
@@ -118,8 +187,8 @@ class Discourdian(discord.Client):
                 break
 
         if message_approved:
-            print("Approved Message Found! Posting...")
-            await self.post_content(message)
+            print("Approved Message Found! Scheduling...")
+            await self.schedule_content(message)
 
 
 if __name__ == "__main__":
