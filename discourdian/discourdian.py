@@ -8,6 +8,7 @@ import praw
 from instagrapi import Client as InstaClient
 from random import random
 from PIL import Image, ImageOps, ImageColor
+import os
 
 import logging
 from dataclasses import dataclass, asdict
@@ -100,7 +101,7 @@ class ContentSchedule:
             self._schedule = json.loads(f.read())
 
     def schedule(self, when: datetime, content: Content):
-        when = datetime.isoformat(when)
+        when = when.isoformat()
         if when not in self._schedule:
             self._schedule[when] = []
         self._schedule[when].append(asdict(content))
@@ -128,16 +129,19 @@ class ContentSchedule:
 class Discourdian(discord.Client):
     contentSchedule = ContentSchedule()
 
+    async def postContent(self, contentToPost):
+        contentToPost = Content(**contentToPost)
+        await self.post_content(contentToPost)
+        self.contentSchedule.syncSchedule()
+
     async def on_ready(self):
         print(f"Logged on as {self.user}!")
         print("Starting schedule loop...")
         while True:
             now = datetime.utcnow().isoformat()
             try:
-                contentToPost = list(*self.contentSchedule.contentToPost())[0]
-                contentToPost = Content(**contentToPost)
-                await self.post_content(contentToPost)
-                self.contentSchedule.syncSchedule()
+                for contentToPost in self.contentSchedule.contentToPost():
+                    await self.postContent(contentToPost[0])
             except IndexError:
                 print("No content to post")
 
@@ -149,25 +153,46 @@ class Discourdian(discord.Client):
         for attachment in message.attachments:
             filename = attachment.filename
             if filename.split('.')[-1] in ['jpg', 'png', 'gif']:
-                path = f"./discourdian_{attachment.filename}"
+                path = f"./imageCache/discourdian_{attachment.filename}"
                 await attachment.save(path)
                 urls.append(path)
         return urls
 
+    def cleanImageCache(self):
+        cacheContents = [f for f in os.listdir('./imageCache') if not os.path.isfile(f)]
+        for when, content in self.contentSchedule._schedule.items():
+            pass
+
     async def schedule_content(self, message):
         urls = await self.retrieve_attachments(message)
         content = Content(imageUrls=urls, caption=message.content)
-        contentDate = self.contentSchedule.lastScheduled + timedelta(days=1 + 2 * random(), hours=1 + 12  * random())
+        contentDate = self.contentSchedule.lastScheduled + timedelta(days=random(), hours=12  * random())
 
         self.contentSchedule.schedule(when=contentDate, content=content)
         print(f"Content scheduled for: {contentDate}")
 
     async def post_content(self, content):
         print(f"Posting content: {content}...")
-        postToReddit(content)
-        postToTwitter(content)
-        postToInstagram(content)
-        postToActivityStream(content)
+        try:
+            postToReddit(content)
+        except:
+            print("Failed to post to Reddit")
+        
+        try:
+            postToTwitter(content)
+        except:
+            print("Failed to post to Twitter")
+        
+        try:
+            postToInstagram(content)
+        except:
+            print("Failed to post to Instagram")
+
+        try:
+            postToActivityStream(content)
+        except:
+            print("Failed to post to Activity Stream")
+
         print("Content posted.")
 
     async def on_raw_reaction_add(self, payload):
