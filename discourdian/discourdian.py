@@ -1,6 +1,7 @@
 import json
 from random import random
 from datetime import datetime, timedelta
+from traceback import format_exc
 
 import discord
 import tweepy
@@ -166,7 +167,7 @@ class Discourdian(discord.Client):
     async def schedule_content(self, message):
         urls = await self.retrieve_attachments(message)
         content = Content(imageUrls=urls, caption=message.content)
-        contentDate = self.contentSchedule.lastScheduled + timedelta(days=random(), hours=12  * random())
+        contentDate = self.contentSchedule.lastScheduled + timedelta(days=random(), hours=32  * random())
 
         self.contentSchedule.schedule(when=contentDate, content=content)
         print(f"Content scheduled for: {contentDate}")
@@ -176,22 +177,22 @@ class Discourdian(discord.Client):
         try:
             postToReddit(content)
         except:
-            print("Failed to post to Reddit")
+            print(f"Failed to post to Reddit: {format_exc()}")
         
         try:
             postToTwitter(content)
         except:
-            print("Failed to post to Twitter")
+            print(f"Failed to post to Twitter: {format_exc()}")
         
         try:
             postToInstagram(content)
         except:
-            print("Failed to post to Instagram")
+            print(f"Failed to post to Instagram: {format_exc()}")
 
         try:
             postToActivityStream(content)
         except:
-            print("Failed to post to Activity Stream")
+            print(f"Failed to post to Activity Stream: {format_exc()}")
 
         print("Content posted.")
 
