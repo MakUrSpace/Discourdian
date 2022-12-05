@@ -7,7 +7,7 @@ import discord
 import tweepy
 import praw
 from instagrapi import Client as InstaClient
-from random import random
+from playwright.sync_api import sync_playwright
 from PIL import Image, ImageOps, ImageColor
 import os
 
@@ -109,7 +109,7 @@ def postToInstagram(content):
 
 def postToActivityStream(content):
     pass
-         
+
 
 class ContentSchedule:
     def __init__(self):
@@ -129,6 +129,15 @@ class ContentSchedule:
             self._schedule[when] = []
         self._schedule[when].append(asdict(content))
         self.write()
+
+    def shiftSchedule(self, startDate=None):
+        startDate = startDate if startDate is not None else datetime.utcnow()
+        minDate = datetime.fromisoformat(min(self._schedule.keys()))
+        dateDelta = startDate - minDate
+        newSchedule = {
+            (datetime.fromisoformat(key) + dateDelta).isoformat(): content
+            for key, content in self._schedule.items()}
+        self._schedule = newSchedule
 
     def contentToPost(self):
         now = datetime.utcnow().isoformat()
@@ -189,7 +198,7 @@ class Discourdian(discord.Client):
     async def schedule_content(self, message):
         urls = await self.retrieve_attachments(message)
         content = Content(imageUrls=urls, caption=message.content)
-        contentDate = self.contentSchedule.lastScheduled + timedelta(days=random(), hours=32  * random())
+        contentDate = self.contentSchedule.lastScheduled + timedelta(days=1, hours=32  * random())
 
         self.contentSchedule.schedule(when=contentDate, content=content)
         print(f"Content scheduled for: {contentDate}")
@@ -200,12 +209,12 @@ class Discourdian(discord.Client):
             postToReddit(content)
         except:
             print(f"Failed to post to Reddit: {format_exc()}")
-        
+
         try:
             postToTwitter(content)
         except:
             print(f"Failed to post to Twitter: {format_exc()}")
-        
+
         try:
             postToInstagram(content)
         except:
