@@ -76,7 +76,7 @@ def postToInstagram(content):
         page.get_by_label("Phone number, username, or email").click()
         page.get_by_label("Phone number, username, or email").fill("makurspacellc")
         page.get_by_label("Phone number, username, or email").press("Tab")
-        page.get_by_label("Password").fill("mussocialinsta")
+        page.get_by_label("Password").fill(keys.instaPw)
         page.get_by_role("button", name="Log in").first.click()
         page.get_by_role("button", name="Not Now").click()
 
