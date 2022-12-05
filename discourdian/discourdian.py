@@ -68,21 +68,43 @@ def postToTwitter(content):
 
 
 def postToInstagram(content):
-    ic = InstaClient()
-    ic.login("makurspacellc", keys.instaPw)
-    media_ids = []
-    for imageUrl in content.imageUrls[:1]:
-        if not content.fileTypeCheck(imageUrl, ['jpg', 'png']):
-            continue
-        jpgPath = f".{''.join(imageUrl.split('.')[:-1])}.jpg"
-        image = Image.open(imageUrl).convert("RGB")
-        color = ImageColor.getrgb("orange" if random() > 0.45 else "gray")
-        expandedImage = ImageOps.expand(image, border=50, fill=color)
-        newLength = max(*expandedImage.size)
-        alteredImage = ImageOps.pad(image, (newLength, newLength), color=color)
-        alteredImage.save(jpgPath)
-        media_ids.append(ic.photo_upload(jpgPath, content.caption))
-    return media_ids
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=False)
+        context = browser.new_context()
+        page = context.new_page()
+        page.goto("https://www.instagram.com/")
+        page.get_by_label("Phone number, username, or email").click()
+        page.get_by_label("Phone number, username, or email").fill("makurspacellc")
+        page.get_by_label("Phone number, username, or email").press("Tab")
+        page.get_by_label("Password").fill(keys.instaPw)
+        page.get_by_role("button", name="Log in").first.click()
+        page.get_by_role("button", name="Not Now").click()
+
+        for imageUrl in content.imageUrls[:1]:
+            if not content.fileTypeCheck(imageUrl, ['jpg', 'png']):
+                continue
+            jpgPath = f".{''.join(imageUrl.split('.')[:-1])}.jpg"
+            image = Image.open(imageUrl).convert("RGB")
+            color = ImageColor.getrgb("orange" if random() > 0.45 else "gray")
+            expandedImage = ImageOps.expand(image, border=50, fill=color)
+            newLength = max(*expandedImage.size)
+            alteredImage = ImageOps.pad(image, (newLength, newLength), color=color)
+            alteredImage.save(jpgPath)
+
+            page.get_by_role("link", name="New post Create").click()
+            page.get_by_role("button", name="Select from computer").click()
+            page.get_by_role("button", name="Select from computer").set_input_files(jpgPath)
+            page.get_by_role("button", name="Select crop").nth(1).click()
+            page.get_by_role("button", name="Original Photo outline icon").click()
+            page.get_by_role("button", name="Next").click()
+            page.get_by_role("button", name="Next").click()
+            page.get_by_placeholder("Write a caption...").click()
+            page.get_by_placeholder("Write a caption...").fill("This is the way")
+            page.get_by_role("button", name="Share").click()
+
+        # ---------------------
+        context.close()
+        browser.close()
 
 
 def postToActivityStream(content):
