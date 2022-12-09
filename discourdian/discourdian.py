@@ -2,12 +2,12 @@ import json
 from random import random
 from datetime import datetime, timedelta
 from traceback import format_exc
+from random import random
 
 import discord
 import tweepy
 import praw
-from instagrapi import Client as InstaClient
-from playwright.sync_api import sync_playwright
+from playwright.async_api import async_playwright
 from PIL import Image, ImageOps, ImageColor
 import os
 
@@ -67,18 +67,22 @@ def postToTwitter(content):
         return api.update_status(status=content.caption, media_ids=media_ids)
 
 
-def postToInstagram(content):
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=False)
-        context = browser.new_context()
-        page = context.new_page()
-        page.goto("https://www.instagram.com/")
-        page.get_by_label("Phone number, username, or email").click()
-        page.get_by_label("Phone number, username, or email").fill("makurspacellc")
-        page.get_by_label("Phone number, username, or email").press("Tab")
-        page.get_by_label("Password").fill(keys.instaPw)
-        page.get_by_role("button", name="Log in").first.click()
-        page.get_by_role("button", name="Not Now").click()
+async def postToInstagram(content):
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=False)
+        context = await browser.new_context()
+        page = await context.new_page()
+        await page.goto("https://www.instagram.com/")
+        await page.get_by_label("Phone number, username, or email").click()
+        await page.get_by_label("Phone number, username, or email").fill("makurspacellc")
+        await page.get_by_label("Phone number, username, or email").press("Tab")
+        await page.get_by_label("Password").fill(keys.instaPw)
+        await page.get_by_role("button", name="Log in").first.click()
+        await sleep(3 * random() + 1)
+        await page.get_by_role("button", name="Not Now").click()
+        await sleep(3 * random() + 1)
+        await page.get_by_role("button", name="Not Now").click()
+        await sleep(3 * random() + 1)
 
         for imageUrl in content.imageUrls[:1]:
             if not content.fileTypeCheck(imageUrl, ['jpg', 'png']):
@@ -91,20 +95,32 @@ def postToInstagram(content):
             alteredImage = ImageOps.pad(image, (newLength, newLength), color=color)
             alteredImage.save(jpgPath)
 
-            page.get_by_role("link", name="New post Create").click()
-            page.get_by_role("button", name="Select from computer").click()
-            page.get_by_role("button", name="Select from computer").set_input_files(jpgPath)
-            page.get_by_role("button", name="Select crop").nth(1).click()
-            page.get_by_role("button", name="Original Photo outline icon").click()
-            page.get_by_role("button", name="Next").click()
-            page.get_by_role("button", name="Next").click()
-            page.get_by_placeholder("Write a caption...").click()
-            page.get_by_placeholder("Write a caption...").fill("This is the way")
-            page.get_by_role("button", name="Share").click()
+            await page.get_by_role("link", name="New post Create").click()
+            await sleep(3 * random())
+
+            async with page.expect_file_chooser() as fc_info:
+                await page.get_by_role("button", name="Select from computer").click()
+            file_chooser = await fc_info.value
+            await file_chooser.set_files(jpgPath)
+            await sleep(3)
+            await page.get_by_role("button", name="Select crop").nth(1).click()
+            await sleep(3 * random())
+            await page.get_by_role("button", name="Original Photo outline icon").click()
+            await sleep(3 * random())
+            await page.get_by_role("button", name="Next").click()
+            await sleep(3 * random())
+            await page.get_by_role("button", name="Next").click()
+            await sleep(3 * random())
+            await page.get_by_placeholder("Write a caption...").click()
+            await sleep(3 * random())
+            await page.get_by_placeholder("Write a caption...").fill("This is the way")
+            await sleep(3 * random())
+            await page.get_by_role("button", name="Share").click()
+            await sleep(3 * random())
 
         # ---------------------
-        context.close()
-        browser.close()
+        await context.close()
+        await browser.close()
 
 
 def postToActivityStream(content):
@@ -205,6 +221,7 @@ class Discourdian(discord.Client):
 
     async def post_content(self, content):
         print(f"Posting content: {content}...")
+
         try:
             postToReddit(content)
         except:
@@ -216,7 +233,7 @@ class Discourdian(discord.Client):
             print(f"Failed to post to Twitter: {format_exc()}")
 
         try:
-            postToInstagram(content)
+            await postToInstagram(content)
         except:
             print(f"Failed to post to Instagram: {format_exc()}")
 
